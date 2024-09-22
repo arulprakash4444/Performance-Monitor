@@ -1,0 +1,102 @@
+<!-- SERVER_PORT - port number of the server -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Client Machine Utilization Dashboard</title>
+    <script src="socket.io.min.js"></script>
+    <style>
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      table,
+      th,
+      td {
+        border: 1px solid black;
+      }
+      th,
+      td {
+        padding: 10px;
+        text-align: left;
+      }
+      .disconnected {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Client Machine Utilization Dashboard</h1>
+    <h2 id="serverStatus">
+      Server Status: <span id="statusText">Connecting...</span>
+    </h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>MAC Address</th>
+          <th>CPU Utilization (%)</th>
+        </tr>
+      </thead>
+      <tbody id="clientTable"></tbody>
+    </table>
+
+    <script>
+      const socket = io("http://localhost:SERVER_PORT");
+
+      const clientTable = document.getElementById("clientTable");
+      const statusText = document.getElementById("statusText");
+
+      function createRow(initialData) {
+        const row = document.createElement("tr");
+        row.id = initialData.name;
+        row.innerHTML = `
+        <td>${initialData.name}</td>
+        <td>${initialData.macAddress}</td>
+        <td id="${initialData.name}-cpu">0.00</td>
+      `;
+        clientTable.appendChild(row);
+      }
+
+      socket.on("connect", () => {
+        console.log("Conncted to Server");
+        statusText.textContent = "Online";
+        statusText.style.color = "green";
+      });
+
+      socket.emit("dashboard-sendJson");
+      socket.on("server-buildTable", (JsonData) => {
+        for (var clientInfo in JsonData) {
+          createRow({ name: clientInfo, macAddress: JsonData[clientInfo] });
+        }
+      });
+
+      socket.on("server-initial", (initialData) => {
+        console.log(initialData);
+        createRow(initialData);
+      });
+
+      socket.on("server-changing", (changingData) => {
+        console.log(changingData);
+        const changingDataElement = document.getElementById(
+          `${changingData.name}-cpu`
+        );
+        if (changingData.cpu === "Offline") {
+          changingDataElement.innerHTML =
+            '<span class="disconnected">OFFLINE</span>';
+        } else {
+          changingDataElement.textContent = changingData.cpu.toFixed(2);
+        }
+      });
+
+      socket.on("disconnect", (socket) => {
+        console.log("Server is Down", socket);
+        statusText.textContent = "Disconnected";
+        statusText.style.color = "red";
+      });
+    </script>
+  </body>
+</html>
+
+<!-- --------------------------------------------------------------------------------------------------------- -->
